@@ -20,7 +20,7 @@ PATH
   remote: ../solrengine-realtime
   specs:
     solrengine-realtime (0.1.0)
-      rails (>= 7.1)
+      activesupport (>= 7.1)
       solrengine-rpc (~> 0.1)
       websocket-client-simple (~> 0.9)
 
