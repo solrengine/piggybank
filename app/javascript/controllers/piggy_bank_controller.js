@@ -107,8 +107,6 @@ export default class extends Controller {
 
       // 1. Generate fresh keypair signer for lock account
       const lockSigner = await generateKeyPairSigner()
-      console.log("lockSigner:", lockSigner, "address:", lockSigner?.address)
-
       // 2. Get instruction data from server
       const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content
       const response = await fetch(this.buildLockUrlValue, {
@@ -134,13 +132,10 @@ export default class extends Controller {
       if (!this.walletAccount) throw new Error("No wallet account found for " + this.walletAddressValue)
 
       // 4. Build instruction with correct accounts
-      console.log("server response:", { instruction_data, program_id, blockhash, last_valid_block_height })
       const instructionBytes = Uint8Array.from(atob(instruction_data), c => c.charCodeAt(0))
-      console.log("instruction bytes length:", instructionBytes.length)
 
       // Account order from IDL: payer, dst, lock, system_program
       const walletAddr = address(this.walletAccount.address)
-      console.log("walletAddr:", walletAddr, "lockAddr:", lockSigner.address, "programId:", program_id)
       const instruction = {
         programAddress: address(program_id),
         accounts: [
@@ -164,16 +159,12 @@ export default class extends Controller {
       )
 
       // 6. Compile, sign with lock keypair, merge signature
-      console.log("about to compile transaction...")
       const compiled = compileTransaction(txMessage)
-      console.log("compiled OK, about to sign with lock keypair...")
       const [lockSig] = await lockSigner.signTransactions([compiled])
-      console.log("lock signed OK")
       const withLockSig = {
         ...compiled,
         signatures: { ...compiled.signatures, ...lockSig }
       }
-      console.log("merged signatures:", withLockSig.signatures)
 
       // 7. Convert to bytes and send to wallet
       const base64Wire = getBase64EncodedWireTransaction(withLockSig)
