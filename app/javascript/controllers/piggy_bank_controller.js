@@ -10,7 +10,8 @@ import {
   compileTransaction,
   getBase64EncodedWireTransaction,
   address,
-  generateKeyPairSigner
+  generateKeyPairSigner,
+  AccountRole
 } from "@solana/kit"
 
 export default class extends Controller {
@@ -76,6 +77,7 @@ export default class extends Controller {
 
       // 1. Generate fresh keypair signer for lock account
       const lockSigner = await generateKeyPairSigner()
+      console.log("lockSigner:", lockSigner, "address:", lockSigner?.address)
 
       // 2. Get instruction data from server
       const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content
@@ -99,20 +101,24 @@ export default class extends Controller {
       const { instruction_data, program_id, blockhash, last_valid_block_height } = await response.json()
 
       // 3. Get wallet account
+      console.log("wallet accounts:", this.wallet.accounts.map(a => ({ address: a.address, chains: a.chains })))
+      console.log("looking for chain:", this.chainValue)
       const walletAccount = this.wallet.accounts.find(a => a.chains.includes(this.chainValue))
       if (!walletAccount) throw new Error("No wallet account for chain: " + this.chainValue)
+      console.log("walletAccount.address:", walletAccount.address)
 
       // 4. Build instruction with correct accounts
       const instructionBytes = Uint8Array.from(atob(instruction_data), c => c.charCodeAt(0))
 
       // Account order from IDL: payer, dst, lock, system_program
+      const walletAddr = address(walletAccount.address)
       const instruction = {
         programAddress: address(program_id),
         accounts: [
-          { address: address(walletAccount.address), role: 0x03 },  // payer: writable signer
-          { address: address(walletAccount.address), role: 0x00 },  // dst: readonly
-          { address: lockSigner.address, role: 0x03 },              // lock: writable signer
-          { address: address("11111111111111111111111111111111"), role: 0x00 } // system_program: readonly
+          { address: walletAddr, role: AccountRole.WRITABLE_SIGNER },      // payer
+          { address: walletAddr, role: AccountRole.READONLY },              // dst
+          { address: lockSigner.address, role: AccountRole.WRITABLE_SIGNER }, // lock
+          { address: address("11111111111111111111111111111111"), role: AccountRole.READONLY } // system_program
         ],
         data: instructionBytes
       }
@@ -244,10 +250,10 @@ export default class extends Controller {
   }
 
   accountRole(account) {
-    if (account.is_signer && account.is_writable) return 0x03
-    if (account.is_signer) return 0x02
-    if (account.is_writable) return 0x01
-    return 0x00
+    if (account.is_signer && account.is_writable) return AccountRole.WRITABLE_SIGNER
+    if (account.is_signer) return AccountRole.READONLY_SIGNER
+    if (account.is_writable) return AccountRole.WRITABLE
+    return AccountRole.READONLY
   }
 
   showStatus(message, type) {
