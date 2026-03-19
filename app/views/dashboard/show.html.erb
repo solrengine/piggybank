@@ -1,7 +1,7 @@
 <%= turbo_stream_from "wallet_#{current_user.wallet_address}" %>
 
 <div class="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-purple-950" data-controller="auto-refresh" data-auto-refresh-interval-value="60000">
-  <div class="max-w-4xl mx-auto px-4 py-8">
+  <div class="max-w-4xl mx-auto px-4 py-8" data-controller="piggy-bank" data-piggy-bank-build-lock-url-value="/locks/build" data-piggy-bank-build-unlock-url-value="/locks/build_unlock" data-piggy-bank-wallet-address-value="<%= current_user.wallet_address %>">
     <%# Header %>
     <div class="flex items-center justify-between mb-8">
       <div>
@@ -16,7 +16,7 @@
     </div>
 
     <%# Lock Form %>
-    <div class="bg-gray-800/50 backdrop-blur border border-gray-700 rounded-2xl p-6 mb-8" data-controller="piggy-bank" data-piggy-bank-build-lock-url-value="/locks/build" data-piggy-bank-build-unlock-url-value="/locks/build_unlock" data-piggy-bank-wallet-address-value="<%= current_user.wallet_address %>">
+    <div class="bg-gray-800/50 backdrop-blur border border-gray-700 rounded-2xl p-6 mb-8">
       <h2 class="text-xl font-semibold text-white mb-4">Lock SOL</h2>
 
       <div class="grid grid-cols-2 gap-4 mb-4">
