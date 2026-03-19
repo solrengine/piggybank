@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title><%= content_for(:title) || "PiggyBank — Time-locked SOL savings on Solana" %></title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="description" content="Lock your SOL for a set duration on Solana. Built with Rails 8 and SolRengine.">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="application-name" content="PiggyBank">
+    <meta name="mobile-web-app-capable" content="yes">
+
+    <%# Open Graph %>
+    <meta property="og:title" content="PiggyBank — Time-locked SOL savings on Solana">
+    <meta property="og:description" content="Lock your SOL in an on-chain vault. When the timer expires, unlock and get it back. Built with Rails 8 and a custom Anchor program.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://piggybank.solrengine.org">
+
+    <%# Twitter %>
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="PiggyBank — Time-locked SOL savings on Solana">
+    <meta name="twitter:description" content="Lock your SOL in an on-chain vault. When the timer expires, unlock and get it back. Built with Rails 8 and SolRengine.">
+
+    <%= csrf_meta_tags %>
+    <%= csp_meta_tag %>
+
+    <%= yield :head %>
+
+    <link rel="icon" href="/icon.png" type="image/png">
+    <link rel="icon" href="/icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="/icon.png">
+
+    <%= stylesheet_link_tag "application", "data-turbo-track": "reload" %>
+    <%= javascript_include_tag "application", "data-turbo-track": "reload", type: "module" %>
+  </head>
+
+  <body>
+    <%= yield %>
+  </body>
+</html>
