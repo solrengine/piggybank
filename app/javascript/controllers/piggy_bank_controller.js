@@ -26,33 +26,53 @@ export default class extends Controller {
   connect() {
     this.wallet = null
     this.walletAccount = null
-    this.discoverWallet()
   }
 
-  discoverWallet() {
-    const { get, on } = getWallets()
-    const tryMatch = (wallet) => {
-      if (!wallet.features[SolanaSignAndSendTransaction]) return false
-      // Find the account matching the authenticated wallet address
+  // Find the wallet that owns the authenticated address.
+  // Wallets may not expose accounts until connect() is called,
+  // so we check all wallets and try to match by address.
+  async ensureWallet() {
+    if (this.walletAccount) return true
+
+    const { get } = getWallets()
+    const wallets = get()
+
+    for (const wallet of wallets) {
+      if (!wallet.features[SolanaSignAndSendTransaction]) continue
+
+      // Check if this wallet already has our account visible
       const account = wallet.accounts.find(a =>
-        a.address === this.walletAddressValue && a.chains.includes(this.chainValue)
+        a.address === this.walletAddressValue
       )
       if (account) {
         this.wallet = wallet
         this.walletAccount = account
         return true
       }
-      return false
     }
 
-    for (const wallet of get()) {
-      if (tryMatch(wallet)) return
-    }
-    on("register", (...newWallets) => {
-      for (const wallet of newWallets) {
-        if (tryMatch(wallet)) return
+    // No wallet had the account visible — try connecting each one
+    // that supports signAndSendTransaction
+    for (const wallet of wallets) {
+      if (!wallet.features[SolanaSignAndSendTransaction]) continue
+      if (!wallet.features["standard:connect"]) continue
+
+      try {
+        await wallet.features["standard:connect"].connect()
+        const account = wallet.accounts.find(a =>
+          a.address === this.walletAddressValue
+        )
+        if (account) {
+          this.wallet = wallet
+          this.walletAccount = account
+          return true
+        }
+      } catch(e) {
+        // User rejected or wallet doesn't have this account
       }
-    })
+    }
+
+    return false
   }
 
   setAmount(event) {
@@ -64,8 +84,8 @@ export default class extends Controller {
   }
 
   async lock() {
-    if (!this.wallet) {
-      this.showStatus("No wallet found", "error")
+    if (!await this.ensureWallet()) {
+      this.showStatus("No wallet found for " + this.walletAddressValue, "error")
       return
     }
 
@@ -185,8 +205,8 @@ export default class extends Controller {
   }
 
   async unlock(event) {
-    if (!this.wallet) {
-      this.showStatus("No wallet found", "error")
+    if (!await this.ensureWallet()) {
+      this.showStatus("No wallet found for " + this.walletAddressValue, "error")
       return
     }
 
