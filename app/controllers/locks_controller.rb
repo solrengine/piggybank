@@ -18,7 +18,8 @@ class LocksController < ApplicationController
       amt: amount_lamports,
       exp: expiration,
       payer: current_user.wallet_address,
-      dst: current_user.wallet_address
+      dst: current_user.wallet_address,
+      lock: "11111111111111111111111111111111" # placeholder — client replaces with generated keypair
     )
 
     blockhash_data = Solrengine::Rpc.client.get_latest_blockhash

@@ -10,9 +10,8 @@ import {
   compileTransaction,
   getBase64EncodedWireTransaction,
   address,
-  generateKeyPair,
-  getAddressFromPublicKey,
-  signTransaction
+  generateKeyPairSigner,
+  partiallySignTransaction
 } from "@solana/kit"
 
 export default class extends Controller {
@@ -76,9 +75,8 @@ export default class extends Controller {
       this.showStatus("Building transaction...", "pending")
       this.lockBtnTarget.disabled = true
 
-      // 1. Generate fresh keypair for lock account
-      const lockKeyPair = await generateKeyPair()
-      const lockAddress = await getAddressFromPublicKey(lockKeyPair.publicKey)
+      // 1. Generate fresh keypair signer for lock account
+      const lockSigner = await generateKeyPairSigner()
 
       // 2. Get instruction data from server
       const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content
@@ -90,7 +88,7 @@ export default class extends Controller {
         },
         body: JSON.stringify({
           amount: amount,
-          duration: duration * 60 // convert minutes to seconds
+          duration: duration * 60
         })
       })
 
@@ -99,52 +97,28 @@ export default class extends Controller {
         throw new Error(err.error || "Failed to build instruction")
       }
 
-      const { instruction_data, accounts, program_id, blockhash, last_valid_block_height } = await response.json()
+      const { instruction_data, program_id, blockhash, last_valid_block_height } = await response.json()
 
       // 3. Get wallet account
       const walletAccount = this.wallet.accounts.find(a => a.chains.includes(this.chainValue))
       if (!walletAccount) throw new Error("No wallet account for chain: " + this.chainValue)
 
-      // 4. Build instruction with lock keypair as additional signer
+      // 4. Build instruction with correct accounts
       const instructionBytes = Uint8Array.from(atob(instruction_data), c => c.charCodeAt(0))
 
-      // Build account metas - inject the lock keypair address
-      const accountMetas = accounts.map(a => {
-        // Replace the lock account pubkey placeholder if needed
-        let pubkeyStr = a.pubkey
-        return {
-          address: address(pubkeyStr),
-          role: this.accountRole(a)
-        }
-      })
-
-      // Add lock account as writable signer (it's already in accounts from server,
-      // but we need to set its address to our generated keypair)
-      // The server sends accounts with payer, dst, lock, system_program
-      // We need to replace "lock" account address with our generated one
-      // Account order from IDL: payer(0), dst(1), lock(2), system_program(3)
-      accountMetas[2] = {
-        address: lockAddress,
-        role: 0x03 // WRITABLE_SIGNER
-      }
-
-      // Set payer and dst to wallet address
-      accountMetas[0] = {
-        address: address(walletAccount.address),
-        role: 0x03 // WRITABLE_SIGNER
-      }
-      accountMetas[1] = {
-        address: address(walletAccount.address),
-        role: 0x00 // READONLY
-      }
-
+      // Account order from IDL: payer, dst, lock, system_program
       const instruction = {
         programAddress: address(program_id),
-        accounts: accountMetas,
+        accounts: [
+          { address: address(walletAccount.address), role: 0x03 },  // payer: writable signer
+          { address: address(walletAccount.address), role: 0x00 },  // dst: readonly
+          { address: lockSigner.address, role: 0x03 },              // lock: writable signer
+          { address: address("11111111111111111111111111111111"), role: 0x00 } // system_program: readonly
+        ],
         data: instructionBytes
       }
 
-      // 5. Build transaction
+      // 5. Build transaction message
       const txMessage = pipe(
         createTransactionMessage({ version: "legacy" }),
         m => setTransactionMessageFeePayer(address(walletAccount.address), m),
@@ -155,12 +129,14 @@ export default class extends Controller {
         m => appendTransactionMessageInstruction(instruction, m)
       )
 
-      // 6. Compile and sign with lock keypair first
+      // 6. Compile and partially sign with lock keypair
       const compiled = compileTransaction(txMessage)
-      const lockSigned = await signTransaction([lockKeyPair], compiled)
+      const partiallySigned = await partiallySignTransaction([lockSigner], compiled)
 
-      // 7. Send to wallet for final signature
-      const wireTransaction = getBase64EncodedWireTransaction(lockSigned)
+      // 7. Send to wallet for final signature + submission
+      const wireTransaction = getBase64EncodedWireTransaction(partiallySigned)
+
+      this.showStatus("Approve in wallet...", "pending")
 
       const feature = this.wallet.features[SolanaSignAndSendTransaction]
       const [{ signature }] = await feature.signAndSendTransaction(walletAccount, [
@@ -174,7 +150,6 @@ export default class extends Controller {
         "success"
       )
 
-      // Refresh page after a delay to show new lock
       setTimeout(() => window.location.reload(), 3000)
 
     } catch (error) {
@@ -220,14 +195,12 @@ export default class extends Controller {
 
       const instructionBytes = Uint8Array.from(atob(instruction_data), c => c.charCodeAt(0))
 
-      const accountMetas = accounts.map(a => ({
-        address: address(a.pubkey),
-        role: this.accountRole(a)
-      }))
-
       const instruction = {
         programAddress: address(program_id),
-        accounts: accountMetas,
+        accounts: accounts.map(a => ({
+          address: address(a.pubkey),
+          role: this.accountRole(a)
+        })),
         data: instructionBytes
       }
 
@@ -243,6 +216,8 @@ export default class extends Controller {
 
       const compiled = compileTransaction(txMessage)
       const wireTransaction = getBase64EncodedWireTransaction(compiled)
+
+      this.showStatus("Approve in wallet...", "pending")
 
       const feature = this.wallet.features[SolanaSignAndSendTransaction]
       const [{ signature }] = await feature.signAndSendTransaction(walletAccount, [
