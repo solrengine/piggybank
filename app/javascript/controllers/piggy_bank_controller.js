@@ -108,10 +108,13 @@ export default class extends Controller {
       console.log("walletAccount.address:", walletAccount.address)
 
       // 4. Build instruction with correct accounts
+      console.log("server response:", { instruction_data, program_id, blockhash, last_valid_block_height })
       const instructionBytes = Uint8Array.from(atob(instruction_data), c => c.charCodeAt(0))
+      console.log("instruction bytes length:", instructionBytes.length)
 
       // Account order from IDL: payer, dst, lock, system_program
       const walletAddr = address(walletAccount.address)
+      console.log("walletAddr:", walletAddr, "lockAddr:", lockSigner.address, "programId:", program_id)
       const instruction = {
         programAddress: address(program_id),
         accounts: [
@@ -135,24 +138,31 @@ export default class extends Controller {
       )
 
       // 6. Compile, sign with lock keypair, merge signature
+      console.log("about to compile transaction...")
       const compiled = compileTransaction(txMessage)
+      console.log("compiled OK, about to sign with lock keypair...")
       const [lockSig] = await lockSigner.signTransactions([compiled])
+      console.log("lock signed OK")
       const withLockSig = {
         ...compiled,
         signatures: { ...compiled.signatures, ...lockSig }
       }
+      console.log("merged signatures:", withLockSig.signatures)
 
-      // 7. Send to wallet for final signature + submission
-      const wireTransaction = getBase64EncodedWireTransaction(withLockSig)
+      // 7. Convert to bytes and send to wallet
+      const base64Wire = getBase64EncodedWireTransaction(withLockSig)
+      const txBytes = Uint8Array.from(atob(base64Wire), c => c.charCodeAt(0))
 
       this.showStatus("Approve in wallet...", "pending")
 
       const feature = this.wallet.features[SolanaSignAndSendTransaction]
-      const [{ signature }] = await feature.signAndSendTransaction(walletAccount, [
-        { transaction: wireTransaction, chain: this.chainValue }
-      ])
+      const [{ signature: sigBytes }] = await feature.signAndSendTransaction({
+        account: walletAccount,
+        transaction: txBytes,
+        chain: this.chainValue
+      })
 
-      const sigStr = typeof signature === "string" ? signature : new TextDecoder().decode(signature)
+      const sigStr = typeof sigBytes === "string" ? sigBytes : new TextDecoder().decode(sigBytes)
 
       this.showStatus(
         `Locked! <a href="https://explorer.solana.com/tx/${sigStr}?cluster=devnet" target="_blank" class="underline">View on Explorer</a>`,
@@ -224,16 +234,19 @@ export default class extends Controller {
       )
 
       const compiled = compileTransaction(txMessage)
-      const wireTransaction = getBase64EncodedWireTransaction(compiled)
+      const base64Wire = getBase64EncodedWireTransaction(compiled)
+      const txBytes = Uint8Array.from(atob(base64Wire), c => c.charCodeAt(0))
 
       this.showStatus("Approve in wallet...", "pending")
 
       const feature = this.wallet.features[SolanaSignAndSendTransaction]
-      const [{ signature }] = await feature.signAndSendTransaction(walletAccount, [
-        { transaction: wireTransaction, chain: this.chainValue }
-      ])
+      const [{ signature: sigBytes }] = await feature.signAndSendTransaction({
+        account: walletAccount,
+        transaction: txBytes,
+        chain: this.chainValue
+      })
 
-      const sigStr = typeof signature === "string" ? signature : new TextDecoder().decode(signature)
+      const sigStr = typeof sigBytes === "string" ? sigBytes : new TextDecoder().decode(sigBytes)
 
       this.showStatus(
         `Unlocked! <a href="https://explorer.solana.com/tx/${sigStr}?cluster=devnet" target="_blank" class="underline">View on Explorer</a>`,
