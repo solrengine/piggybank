@@ -10,8 +10,7 @@ import {
   compileTransaction,
   getBase64EncodedWireTransaction,
   address,
-  generateKeyPairSigner,
-  partiallySignTransaction
+  generateKeyPairSigner
 } from "@solana/kit"
 
 export default class extends Controller {
@@ -129,12 +128,16 @@ export default class extends Controller {
         m => appendTransactionMessageInstruction(instruction, m)
       )
 
-      // 6. Compile and partially sign with lock keypair
+      // 6. Compile, sign with lock keypair, merge signature
       const compiled = compileTransaction(txMessage)
-      const partiallySigned = await partiallySignTransaction([lockSigner], compiled)
+      const [lockSig] = await lockSigner.signTransactions([compiled])
+      const withLockSig = {
+        ...compiled,
+        signatures: { ...compiled.signatures, ...lockSig }
+      }
 
       // 7. Send to wallet for final signature + submission
-      const wireTransaction = getBase64EncodedWireTransaction(partiallySigned)
+      const wireTransaction = getBase64EncodedWireTransaction(withLockSig)
 
       this.showStatus("Approve in wallet...", "pending")
 
