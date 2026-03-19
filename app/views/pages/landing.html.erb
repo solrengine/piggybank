@@ -1,0 +1,46 @@
+<div class="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-purple-950">
+  <div class="max-w-4xl mx-auto px-4 py-20">
+    <div class="text-center mb-16">
+      <h1 class="text-6xl font-bold text-white mb-4">PiggyBank</h1>
+      <p class="text-xl text-gray-400 mb-8">Time-locked SOL savings on Solana</p>
+      <p class="text-gray-500 max-w-2xl mx-auto mb-10">
+        Lock your SOL for a set duration. When the timer expires, unlock and get it back.
+        Built with Rails 8 and SolRengine.
+      </p>
+      <%= link_to login_path, class: "inline-flex items-center gap-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white font-semibold py-4 px-8 rounded-xl transition-all duration-200 text-lg" do %>
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+        </svg>
+        Connect Wallet
+      <% end %>
+    </div>
+
+    <div class="grid md:grid-cols-3 gap-6 mb-16">
+      <div class="bg-gray-800/50 backdrop-blur border border-gray-700 rounded-2xl p-6">
+        <div class="text-3xl mb-3">1</div>
+        <h3 class="text-white font-semibold mb-2">Get Devnet SOL</h3>
+        <p class="text-gray-400 text-sm">Visit the <a href="https://faucet.solana.com" target="_blank" class="text-purple-400 hover:text-purple-300">Solana Faucet</a> to get free devnet SOL for testing.</p>
+      </div>
+
+      <div class="bg-gray-800/50 backdrop-blur border border-gray-700 rounded-2xl p-6">
+        <div class="text-3xl mb-3">2</div>
+        <h3 class="text-white font-semibold mb-2">Lock SOL</h3>
+        <p class="text-gray-400 text-sm">Choose an amount and duration. Your SOL is locked in a program account until the timer expires.</p>
+      </div>
+
+      <div class="bg-gray-800/50 backdrop-blur border border-gray-700 rounded-2xl p-6">
+        <div class="text-3xl mb-3">3</div>
+        <h3 class="text-white font-semibold mb-2">Unlock</h3>
+        <p class="text-gray-400 text-sm">When the timer expires, click unlock to get your SOL back. Simple as that.</p>
+      </div>
+    </div>
+
+    <div class="text-center">
+      <p class="text-gray-600 text-sm">
+        Powered by the
+        <a href="https://github.com/solrengine" target="_blank" class="text-purple-400 hover:text-purple-300">SolRengine</a>
+        framework &mdash; Rails 8 + Solana
+      </p>
+    </div>
+  </div>
+</div>

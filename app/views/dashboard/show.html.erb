@@ -1,0 +1,77 @@
+<%= turbo_stream_from "wallet_#{current_user.wallet_address}" %>
+
+<div class="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-purple-950" data-controller="auto-refresh" data-auto-refresh-interval-value="60000">
+  <div class="max-w-4xl mx-auto px-4 py-8">
+    <%# Header %>
+    <div class="flex items-center justify-between mb-8">
+      <div>
+        <h1 class="text-3xl font-bold text-white">PiggyBank</h1>
+        <p class="text-gray-400 text-sm mt-1">
+          <%= current_user.wallet_address[0..3] %>...<%= current_user.wallet_address[-4..] %>
+        </p>
+      </div>
+      <%= link_to logout_path, data: { turbo_method: :delete }, class: "text-gray-400 hover:text-white transition-colors text-sm" do %>
+        Disconnect
+      <% end %>
+    </div>
+
+    <%# Lock Form %>
+    <div class="bg-gray-800/50 backdrop-blur border border-gray-700 rounded-2xl p-6 mb-8" data-controller="piggy-bank" data-piggy-bank-build-lock-url-value="/locks/build" data-piggy-bank-build-unlock-url-value="/locks/build_unlock">
+      <h2 class="text-xl font-semibold text-white mb-4">Lock SOL</h2>
+
+      <div class="grid grid-cols-2 gap-4 mb-4">
+        <div>
+          <label class="block text-gray-400 text-sm mb-2">Amount (SOL)</label>
+          <div class="flex gap-2 mb-2">
+            <% [0.1, 0.2, 0.3].each do |amt| %>
+              <button data-action="click->piggy-bank#setAmount" data-amount="<%= amt %>"
+                class="flex-1 cursor-pointer bg-gray-700 hover:bg-gray-600 text-white text-sm py-2 rounded-lg transition-colors">
+                <%= amt %>
+              </button>
+            <% end %>
+          </div>
+          <input type="number" step="0.01" min="0.01" data-piggy-bank-target="amount" placeholder="Custom amount"
+            class="w-full bg-gray-900 border border-gray-600 text-white rounded-lg px-4 py-2 focus:border-purple-500 focus:outline-none">
+        </div>
+
+        <div>
+          <label class="block text-gray-400 text-sm mb-2">Duration (minutes)</label>
+          <div class="flex gap-2 mb-2">
+            <% [2, 5, 10].each do |dur| %>
+              <button data-action="click->piggy-bank#setDuration" data-duration="<%= dur %>"
+                class="flex-1 cursor-pointer bg-gray-700 hover:bg-gray-600 text-white text-sm py-2 rounded-lg transition-colors">
+                <%= dur %>m
+              </button>
+            <% end %>
+          </div>
+          <input type="number" min="1" data-piggy-bank-target="duration" placeholder="Custom minutes"
+            class="w-full bg-gray-900 border border-gray-600 text-white rounded-lg px-4 py-2 focus:border-purple-500 focus:outline-none">
+        </div>
+      </div>
+
+      <button data-action="click->piggy-bank#lock" data-piggy-bank-target="lockBtn"
+        class="w-full cursor-pointer bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white font-semibold py-3 rounded-xl transition-all duration-200">
+        Lock SOL
+      </button>
+
+      <div data-piggy-bank-target="status" class="hidden mt-4 p-3 rounded-lg text-sm text-center"></div>
+    </div>
+
+    <%# Lock List %>
+    <div id="locks-list">
+      <h2 class="text-xl font-semibold text-white mb-4">Your Locks</h2>
+
+      <% if @locks.empty? %>
+        <div class="bg-gray-800/50 backdrop-blur border border-gray-700 rounded-2xl p-8 text-center">
+          <p class="text-gray-400">No locks yet. Lock some SOL to get started.</p>
+        </div>
+      <% else %>
+        <div class="space-y-4">
+          <% @locks.each do |lock| %>
+            <%= render "locks/lock_card", lock: lock %>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>

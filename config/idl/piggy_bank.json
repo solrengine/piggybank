@@ -1,0 +1,130 @@
+{
+  "address": "ZaU8j7XCKSxmmkMvg7NnjrLNK6eiLZbHsJQAc2rFzEN",
+  "metadata": {
+    "name": "piggy_bank",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Created with Anchor"
+  },
+  "instructions": [
+    {
+      "name": "lock",
+      "discriminator": [
+        21,
+        19,
+        208,
+        43,
+        237,
+        62,
+        255,
+        87
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "dst"
+        },
+        {
+          "name": "lock",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "amt",
+          "type": "u64"
+        },
+        {
+          "name": "exp",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "unlock",
+      "discriminator": [
+        101,
+        155,
+        40,
+        21,
+        158,
+        189,
+        56,
+        203
+      ],
+      "accounts": [
+        {
+          "name": "lock",
+          "writable": true
+        },
+        {
+          "name": "dst",
+          "writable": true,
+          "relations": [
+            "lock"
+          ]
+        }
+      ],
+      "args": []
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Lock",
+      "discriminator": [
+        8,
+        255,
+        36,
+        202,
+        210,
+        22,
+        57,
+        137
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "InvalidAmount",
+      "msg": "Amount must be greater than 0"
+    },
+    {
+      "code": 6001,
+      "name": "InvalidExpiration",
+      "msg": "Expiration must be in the future"
+    },
+    {
+      "code": 6002,
+      "name": "LockNotExpired",
+      "msg": "Lock has not expired yet"
+    }
+  ],
+  "types": [
+    {
+      "name": "Lock",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "dst",
+            "type": "pubkey"
+          },
+          {
+            "name": "exp",
+            "type": "u64"
+          }
+        ]
+      }
+    }
+  ]
+}
