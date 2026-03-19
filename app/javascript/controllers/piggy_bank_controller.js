@@ -19,28 +19,38 @@ export default class extends Controller {
   static values = {
     buildLockUrl: String,
     buildUnlockUrl: String,
+    walletAddress: String,
     chain: { type: String, default: "solana:devnet" }
   }
 
   connect() {
     this.wallet = null
+    this.walletAccount = null
     this.discoverWallet()
   }
 
   discoverWallet() {
     const { get, on } = getWallets()
-    for (const wallet of get()) {
-      if (wallet.features[SolanaSignAndSendTransaction]) {
+    const tryMatch = (wallet) => {
+      if (!wallet.features[SolanaSignAndSendTransaction]) return false
+      // Find the account matching the authenticated wallet address
+      const account = wallet.accounts.find(a =>
+        a.address === this.walletAddressValue && a.chains.includes(this.chainValue)
+      )
+      if (account) {
         this.wallet = wallet
-        return
+        this.walletAccount = account
+        return true
       }
+      return false
+    }
+
+    for (const wallet of get()) {
+      if (tryMatch(wallet)) return
     }
     on("register", (...newWallets) => {
       for (const wallet of newWallets) {
-        if (wallet.features[SolanaSignAndSendTransaction]) {
-          this.wallet = wallet
-          return
-        }
+        if (tryMatch(wallet)) return
       }
     })
   }
@@ -101,11 +111,7 @@ export default class extends Controller {
       const { instruction_data, program_id, blockhash, last_valid_block_height } = await response.json()
 
       // 3. Get wallet account
-      console.log("wallet accounts:", this.wallet.accounts.map(a => ({ address: a.address, chains: a.chains })))
-      console.log("looking for chain:", this.chainValue)
-      const walletAccount = this.wallet.accounts.find(a => a.chains.includes(this.chainValue))
-      if (!walletAccount) throw new Error("No wallet account for chain: " + this.chainValue)
-      console.log("walletAccount.address:", walletAccount.address)
+      if (!this.walletAccount) throw new Error("No wallet account found for " + this.walletAddressValue)
 
       // 4. Build instruction with correct accounts
       console.log("server response:", { instruction_data, program_id, blockhash, last_valid_block_height })
@@ -113,7 +119,7 @@ export default class extends Controller {
       console.log("instruction bytes length:", instructionBytes.length)
 
       // Account order from IDL: payer, dst, lock, system_program
-      const walletAddr = address(walletAccount.address)
+      const walletAddr = address(this.walletAccount.address)
       console.log("walletAddr:", walletAddr, "lockAddr:", lockSigner.address, "programId:", program_id)
       const instruction = {
         programAddress: address(program_id),
@@ -129,7 +135,7 @@ export default class extends Controller {
       // 5. Build transaction message
       const txMessage = pipe(
         createTransactionMessage({ version: "legacy" }),
-        m => setTransactionMessageFeePayer(address(walletAccount.address), m),
+        m => setTransactionMessageFeePayer(address(this.walletAccount.address), m),
         m => setTransactionMessageLifetimeUsingBlockhash(
           { blockhash: blockhash, lastValidBlockHeight: BigInt(last_valid_block_height) },
           m
@@ -157,7 +163,7 @@ export default class extends Controller {
 
       const feature = this.wallet.features[SolanaSignAndSendTransaction]
       const [{ signature: sigBytes }] = await feature.signAndSendTransaction({
-        account: walletAccount,
+        account: this.walletAccount,
         transaction: txBytes,
         chain: this.chainValue
       })
@@ -209,8 +215,7 @@ export default class extends Controller {
 
       const { instruction_data, accounts, program_id, blockhash, last_valid_block_height } = await response.json()
 
-      const walletAccount = this.wallet.accounts.find(a => a.chains.includes(this.chainValue))
-      if (!walletAccount) throw new Error("No wallet account for chain")
+      if (!this.walletAccount) throw new Error("No wallet account found for " + this.walletAddressValue)
 
       const instructionBytes = Uint8Array.from(atob(instruction_data), c => c.charCodeAt(0))
 
@@ -225,7 +230,7 @@ export default class extends Controller {
 
       const txMessage = pipe(
         createTransactionMessage({ version: "legacy" }),
-        m => setTransactionMessageFeePayer(address(walletAccount.address), m),
+        m => setTransactionMessageFeePayer(address(this.walletAccount.address), m),
         m => setTransactionMessageLifetimeUsingBlockhash(
           { blockhash: blockhash, lastValidBlockHeight: BigInt(last_valid_block_height) },
           m
@@ -241,7 +246,7 @@ export default class extends Controller {
 
       const feature = this.wallet.features[SolanaSignAndSendTransaction]
       const [{ signature: sigBytes }] = await feature.signAndSendTransaction({
-        account: walletAccount,
+        account: this.walletAccount,
         transaction: txBytes,
         chain: this.chainValue
       })

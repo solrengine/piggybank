@@ -16,7 +16,7 @@
     </div>
 
     <%# Lock Form %>
-    <div class="bg-gray-800/50 backdrop-blur border border-gray-700 rounded-2xl p-6 mb-8" data-controller="piggy-bank" data-piggy-bank-build-lock-url-value="/locks/build" data-piggy-bank-build-unlock-url-value="/locks/build_unlock">
+    <div class="bg-gray-800/50 backdrop-blur border border-gray-700 rounded-2xl p-6 mb-8" data-controller="piggy-bank" data-piggy-bank-build-lock-url-value="/locks/build" data-piggy-bank-build-unlock-url-value="/locks/build_unlock" data-piggy-bank-wallet-address-value="<%= current_user.wallet_address %>">
       <h2 class="text-xl font-semibold text-white mb-4">Lock SOL</h2>
 
       <div class="grid grid-cols-2 gap-4 mb-4">
