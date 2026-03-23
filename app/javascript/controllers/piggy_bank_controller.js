@@ -1,14 +1,14 @@
 import { Controller } from "@hotwired/stimulus"
-import { getWallets } from "@wallet-standard/app"
-import { SolanaSignAndSendTransaction } from "@solana/wallet-standard-features"
 import {
-  pipe,
-  createTransactionMessage,
-  setTransactionMessageLifetimeUsingBlockhash,
-  setTransactionMessageFeePayer,
-  appendTransactionMessageInstruction,
-  compileTransaction,
-  getBase64EncodedWireTransaction,
+  findWalletByAddress,
+  buildProgramInstruction,
+  compileTransactionMessage,
+  toWireBytes,
+  signAndSend,
+  explorerUrl,
+  getCsrfToken,
+} from "@solrengine/wallet-utils"
+import {
   address,
   generateKeyPairSigner,
   AccountRole
@@ -25,53 +25,15 @@ export default class extends Controller {
   }
 
   connect() {
-    this.wallet = null
-    this.walletAccount = null
+    this._wallet = null
+    this._account = null
   }
 
-  // Find the wallet that owns the authenticated address.
-  // Wallets may not expose accounts until connect() is called,
-  // so we check all wallets and try to match by address.
   async ensureWallet() {
-    if (this.walletAccount) return true
-
-    const { get } = getWallets()
-    const wallets = get()
-
-    for (const wallet of wallets) {
-      if (!wallet.features[SolanaSignAndSendTransaction]) continue
-
-      const account = wallet.accounts.find(a =>
-        a.address === this.walletAddressValue
-      )
-      if (account) {
-        this.wallet = wallet
-        this.walletAccount = account
-        return true
-      }
-    }
-
-    // No wallet had the account visible — try connecting each one
-    for (const wallet of wallets) {
-      if (!wallet.features[SolanaSignAndSendTransaction]) continue
-      if (!wallet.features["standard:connect"]) continue
-
-      try {
-        await wallet.features["standard:connect"].connect()
-        const account = wallet.accounts.find(a =>
-          a.address === this.walletAddressValue
-        )
-        if (account) {
-          this.wallet = wallet
-          this.walletAccount = account
-          return true
-        }
-      } catch(e) {
-        // User rejected or wallet doesn't have this account
-      }
-    }
-
-    return false
+    if (this._account) return
+    const result = await findWalletByAddress(this.walletAddressValue)
+    this._wallet = result.wallet
+    this._account = result.account
   }
 
   setAmount(event) {
@@ -83,7 +45,9 @@ export default class extends Controller {
   }
 
   async lock() {
-    if (!await this.ensureWallet()) {
+    try {
+      await this.ensureWallet()
+    } catch {
       this.showStatus("No wallet found for " + this.walletAddressValue, "error")
       return
     }
@@ -106,18 +70,15 @@ export default class extends Controller {
 
       // 1. Generate fresh keypair signer for lock account
       const lockSigner = await generateKeyPairSigner()
+
       // 2. Get instruction data from server
-      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content
       const response = await fetch(this.buildLockUrlValue, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-CSRF-Token": csrfToken
+          "X-CSRF-Token": getCsrfToken()
         },
-        body: JSON.stringify({
-          amount: amount,
-          duration: duration * 60
-        })
+        body: JSON.stringify({ amount, duration: duration * 60 })
       })
 
       if (!response.ok) {
@@ -128,58 +89,48 @@ export default class extends Controller {
       const { instruction_data, program_id, blockhash, last_valid_block_height } = await response.json()
 
       // 3. Build instruction with correct accounts
+      // Account order from IDL: payer, dst, lock, system_program
+      const walletAddr = address(this._account.address)
       const instructionBytes = Uint8Array.from(atob(instruction_data), c => c.charCodeAt(0))
 
-      // Account order from IDL: payer, dst, lock, system_program
-      const walletAddr = address(this.walletAccount.address)
       const instruction = {
         programAddress: address(program_id),
         accounts: [
-          { address: walletAddr, role: AccountRole.WRITABLE_SIGNER },      // payer
-          { address: walletAddr, role: AccountRole.READONLY },              // dst
-          { address: lockSigner.address, role: AccountRole.WRITABLE_SIGNER }, // lock
-          { address: address("11111111111111111111111111111111"), role: AccountRole.READONLY } // system_program
+          { address: walletAddr, role: AccountRole.WRITABLE_SIGNER },
+          { address: walletAddr, role: AccountRole.READONLY },
+          { address: lockSigner.address, role: AccountRole.WRITABLE_SIGNER },
+          { address: address("11111111111111111111111111111111"), role: AccountRole.READONLY }
         ],
         data: instructionBytes
       }
 
-      // 4. Build transaction message
-      const txMessage = pipe(
-        createTransactionMessage({ version: "legacy" }),
-        m => setTransactionMessageFeePayer(address(this.walletAccount.address), m),
-        m => setTransactionMessageLifetimeUsingBlockhash(
-          { blockhash: blockhash, lastValidBlockHeight: BigInt(last_valid_block_height) },
-          m
-        ),
-        m => appendTransactionMessageInstruction(instruction, m)
-      )
+      // 4. Compile and co-sign with lock keypair
+      const compiled = compileTransactionMessage({
+        feePayer: this._account.address,
+        blockhash,
+        lastValidBlockHeight: last_valid_block_height,
+        instruction,
+        version: "legacy"
+      })
 
-      // 5. Compile, sign with lock keypair, merge signature
-      const compiled = compileTransaction(txMessage)
       const [lockSig] = await lockSigner.signTransactions([compiled])
       const withLockSig = {
         ...compiled,
         signatures: { ...compiled.signatures, ...lockSig }
       }
 
-      // 6. Convert to bytes and send to wallet
-      const base64Wire = getBase64EncodedWireTransaction(withLockSig)
-      const txBytes = Uint8Array.from(atob(base64Wire), c => c.charCodeAt(0))
-
+      // 5. Send to wallet for final signature
       this.showStatus("Approve in wallet...", "pending")
-
-      const feature = this.wallet.features[SolanaSignAndSendTransaction]
-      const [{ signature: sigBytes }] = await feature.signAndSendTransaction({
-        account: this.walletAccount,
+      const txBytes = toWireBytes(withLockSig)
+      const signature = await signAndSend({
+        wallet: this._wallet,
+        account: this._account,
         transaction: txBytes,
         chain: this.chainValue
       })
 
-      const sigStr = typeof sigBytes === "string" ? sigBytes : new TextDecoder().decode(sigBytes)
-      const cluster = this.clusterFromChain()
-
-      this.showStatus(`Locked! `, "success")
-      this.appendExplorerLink(sigStr, cluster)
+      this.showStatus("Locked! ", "success")
+      this.appendExplorerLink(signature)
 
       setTimeout(() => { window.location.href = this.dashboardUrlValue }, 3000)
 
@@ -191,7 +142,9 @@ export default class extends Controller {
   }
 
   async unlock(event) {
-    if (!await this.ensureWallet()) {
+    try {
+      await this.ensureWallet()
+    } catch {
       this.showStatus("No wallet found for " + this.walletAddressValue, "error")
       return
     }
@@ -204,12 +157,11 @@ export default class extends Controller {
       event.currentTarget.textContent = "Unlocking..."
       this.showStatus("Building unlock transaction...", "pending")
 
-      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content
       const response = await fetch(this.buildUnlockUrlValue, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-CSRF-Token": csrfToken
+          "X-CSRF-Token": getCsrfToken()
         },
         body: JSON.stringify({ lock_pubkey: lockPubkey })
       })
@@ -221,45 +173,31 @@ export default class extends Controller {
 
       const { instruction_data, accounts, program_id, blockhash, last_valid_block_height } = await response.json()
 
-      const instructionBytes = Uint8Array.from(atob(instruction_data), c => c.charCodeAt(0))
+      const instruction = buildProgramInstruction({
+        programId: program_id,
+        instructionData: instruction_data,
+        accounts
+      })
 
-      const instruction = {
-        programAddress: address(program_id),
-        accounts: accounts.map(a => ({
-          address: address(a.pubkey),
-          role: this.accountRole(a)
-        })),
-        data: instructionBytes
-      }
-
-      const txMessage = pipe(
-        createTransactionMessage({ version: "legacy" }),
-        m => setTransactionMessageFeePayer(address(this.walletAccount.address), m),
-        m => setTransactionMessageLifetimeUsingBlockhash(
-          { blockhash: blockhash, lastValidBlockHeight: BigInt(last_valid_block_height) },
-          m
-        ),
-        m => appendTransactionMessageInstruction(instruction, m)
-      )
-
-      const compiled = compileTransaction(txMessage)
-      const base64Wire = getBase64EncodedWireTransaction(compiled)
-      const txBytes = Uint8Array.from(atob(base64Wire), c => c.charCodeAt(0))
+      const compiled = compileTransactionMessage({
+        feePayer: this._account.address,
+        blockhash,
+        lastValidBlockHeight: last_valid_block_height,
+        instruction,
+        version: "legacy"
+      })
 
       this.showStatus("Approve in wallet...", "pending")
-
-      const feature = this.wallet.features[SolanaSignAndSendTransaction]
-      const [{ signature: sigBytes }] = await feature.signAndSendTransaction({
-        account: this.walletAccount,
+      const txBytes = toWireBytes(compiled)
+      const signature = await signAndSend({
+        wallet: this._wallet,
+        account: this._account,
         transaction: txBytes,
         chain: this.chainValue
       })
 
-      const sigStr = typeof sigBytes === "string" ? sigBytes : new TextDecoder().decode(sigBytes)
-      const cluster = this.clusterFromChain()
-
-      this.showStatus(`Unlocked! `, "success")
-      this.appendExplorerLink(sigStr, cluster)
+      this.showStatus("Unlocked! ", "success")
+      this.appendExplorerLink(signature)
 
       setTimeout(() => { window.location.href = this.dashboardUrlValue }, 3000)
 
@@ -270,24 +208,11 @@ export default class extends Controller {
     }
   }
 
-  accountRole(account) {
-    if (account.is_signer && account.is_writable) return AccountRole.WRITABLE_SIGNER
-    if (account.is_signer) return AccountRole.READONLY_SIGNER
-    if (account.is_writable) return AccountRole.WRITABLE
-    return AccountRole.READONLY
-  }
-
-  clusterFromChain() {
-    if (this.chainValue.includes("devnet")) return "devnet"
-    if (this.chainValue.includes("testnet")) return "testnet"
-    return "mainnet"
-  }
-
   // Safely append an explorer link to the status element (no innerHTML with user data)
-  appendExplorerLink(signature, cluster) {
+  appendExplorerLink(signature) {
     if (!this.hasStatusTarget) return
     const link = document.createElement("a")
-    link.href = `https://explorer.solana.com/tx/${encodeURIComponent(signature)}?cluster=${cluster}`
+    link.href = explorerUrl(signature, this.chainValue)
     link.target = "_blank"
     link.className = "underline"
     link.textContent = "View on Explorer"
