@@ -50,21 +50,32 @@ export default class extends Controller {
     if (!this.hasWalletListTarget) return
     if (this.availableWallets.length === 0) return
 
-    const html = this.availableWallets.map((wallet, index) => `
-      <button
-        data-action="click->wallet#selectWallet"
-        data-wallet-index="${index}"
-        class="flex items-center gap-3 w-full p-3 rounded-xl border cursor-pointer transition-all duration-200
-          ${this.selectedWallet === wallet
-            ? 'border-purple-500 bg-purple-900/20'
-            : 'border-gray-700 hover:border-gray-500 bg-gray-800/30'}"
-      >
-        ${wallet.icon ? `<img src="${wallet.icon}" alt="${wallet.name}" class="w-8 h-8 rounded-lg" />` : ''}
-        <span class="text-white font-medium">${wallet.name}</span>
-      </button>
-    `).join("")
+    this.walletListTarget.replaceChildren()
+    this.availableWallets.forEach((wallet, index) => {
+      const btn = document.createElement("button")
+      btn.dataset.action = "click->wallet#selectWallet"
+      btn.dataset.walletIndex = index
+      btn.className = `flex items-center gap-3 w-full p-3 rounded-xl border cursor-pointer transition-all duration-200 ${
+        this.selectedWallet === wallet
+          ? 'border-purple-500 bg-purple-900/20'
+          : 'border-gray-700 hover:border-gray-500 bg-gray-800/30'
+      }`
 
-    this.walletListTarget.innerHTML = html
+      if (wallet.icon) {
+        const img = document.createElement("img")
+        img.src = wallet.icon
+        img.alt = wallet.name
+        img.className = "w-8 h-8 rounded-lg"
+        btn.appendChild(img)
+      }
+
+      const span = document.createElement("span")
+      span.className = "text-white font-medium"
+      span.textContent = wallet.name
+      btn.appendChild(span)
+
+      this.walletListTarget.appendChild(btn)
+    })
     this.walletListTarget.classList.remove("hidden")
   }
 

@@ -44,7 +44,14 @@ class SessionsController < ApplicationController
     )
 
     unless verifier.verify
+      user.generate_nonce! # rotate nonce on failed attempt
       return render json: { error: "Signature verification failed" }, status: :unauthorized
+    end
+
+    # Verify the nonce in the signed message matches the stored nonce
+    if message.present? && !message.include?("Nonce: #{user.nonce}")
+      user.generate_nonce!
+      return render json: { error: "Authentication expired. Please try again." }, status: :unprocessable_entity
     end
 
     user.generate_nonce!

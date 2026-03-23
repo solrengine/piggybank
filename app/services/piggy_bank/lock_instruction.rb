@@ -1,5 +1,5 @@
 class PiggyBank::LockInstruction < Solrengine::Programs::Instruction
-  program_id "ZaU8j7XCKSxmmkMvg7NnjrLNK6eiLZbHsJQAc2rFzEN"
+  program_id PiggyBank::PROGRAM_ID
   instruction_name "lock"
 
   argument :amt, "u64"

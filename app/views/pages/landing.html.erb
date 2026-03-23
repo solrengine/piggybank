@@ -101,17 +101,6 @@
     </div>
   </div>
 
-  <style>
-    .hero-lock {
-      opacity: 0;
-      animation: fadeInUp 0.5s ease-out both;
-    }
-    @keyframes fadeInUp {
-      from { opacity: 0; transform: translateY(10px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-  </style>
-
   <%# How it works %>
   <div class="max-w-5xl mx-auto px-6 py-20">
     <div class="text-center mb-16">
@@ -232,15 +221,15 @@
           <span class="text-gray-500 text-xs ml-2">lock.rb</span>
         </div>
         <pre class="p-4 text-xs leading-relaxed"><code class="text-gray-300"><span class="text-purple-400">class</span> <span class="text-blue-300">PiggyBank::Lock</span> < <span class="text-blue-300">Solrengine::Programs::Account</span>
-  borsh_field <span class="text-green-400">:dst</span>, <span class="text-green-400">:pubkey</span>
-  borsh_field <span class="text-green-400">:exp</span>, <span class="text-green-400">:i64</span>
+  borsh_field <span class="text-green-400">:dst</span>, <span class="text-green-400">"pubkey"</span>
+  borsh_field <span class="text-green-400">:exp</span>, <span class="text-green-400">"u64"</span>
 
   <span class="text-purple-400">def</span> <span class="text-yellow-300">expired?</span>
     exp < <span class="text-blue-300">Time</span>.now.to_i
   <span class="text-purple-400">end</span>
 
   <span class="text-purple-400">def</span> <span class="text-yellow-300">self</span>.for_wallet(addr)
-    find_by_field(<span class="text-green-400">:dst</span>, addr)
+    query(filters: [{ <span class="text-green-400">"memcmp"</span> => { <span class="text-green-400">"offset"</span> => <span class="text-blue-300">8</span>, <span class="text-green-400">"bytes"</span> => addr } }])
   <span class="text-purple-400">end</span>
 <span class="text-purple-400">end</span></code></pre>
       </div>
@@ -253,16 +242,18 @@
           <span class="text-gray-500 text-xs ml-2">locks_controller.rb</span>
         </div>
         <pre class="p-4 text-xs leading-relaxed"><code class="text-gray-300"><span class="text-purple-400">def</span> <span class="text-yellow-300">build_lock</span>
-  builder = <span class="text-blue-300">LockInstructionBuilder</span>.new(
-    wallet: current_user.wallet_address,
-    amount: params[<span class="text-green-400">:amount</span>],
-    duration: params[<span class="text-green-400">:duration</span>]
+  ix = <span class="text-blue-300">PiggyBank::LockInstruction</span>.new(
+    amt: amount_lamports,
+    exp: expiration,
+    payer: current_user.wallet_address,
+    dst: current_user.wallet_address,
+    lock: lock_address
   )
 
   render json: {
-    instruction_data: builder.encode,
-    program_id: <span class="text-blue-300">PROGRAM_ID</span>,
-    blockhash: rpc.latest_blockhash
+    instruction_data: ix.to_instruction[<span class="text-green-400">:data</span>],
+    program_id: <span class="text-blue-300">PiggyBank::PROGRAM_ID</span>,
+    blockhash: blockhash_data[<span class="text-green-400">:blockhash</span>]
   }
 <span class="text-purple-400">end</span></code></pre>
       </div>

@@ -1,5 +1,6 @@
-<% expired = lock.exp < Time.now.to_i %>
+<% expired = lock.expired? %>
 <% remaining = [lock.exp - Time.now.to_i, 0].max %>
+<% cluster = ENV.fetch("SOLANA_NETWORK", "devnet") %>
 <div class="bg-gray-800/50 backdrop-blur border border-gray-700/50 rounded-2xl p-5"
      data-controller="countdown"
      data-countdown-expires-at-value="<%= lock.exp %>"
@@ -43,7 +44,7 @@
         <span data-countdown-target="timer">Unlocks in <%= remaining / 60 %>m <%= remaining % 60 %>s</span>
       <% end %>
     </div>
-    <a href="https://explorer.solana.com/address/<%= lock.pubkey %>?cluster=devnet" target="_blank"
+    <a href="https://explorer.solana.com/address/<%= lock.pubkey %>?cluster=<%= cluster %>" target="_blank"
        class="text-gray-500 hover:text-purple-400 text-xs transition-colors font-mono">
       <%= lock.pubkey[0..5] %>...<%= lock.pubkey[-4..] %>
     </a>

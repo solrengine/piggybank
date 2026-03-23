@@ -30,11 +30,8 @@ gem "solid_cache"
 gem "solid_queue"
 gem "solid_cable"
 
-# SolRengine gems for Solana integration
-gem "solrengine-auth", path: "../solrengine-auth"
-gem "solrengine-rpc", path: "../solrengine-rpc"
-gem "solrengine-realtime", path: "../solrengine-realtime"
-gem "solrengine-programs", path: "../solrengine-programs"
+# SolRengine — Ruby gems for Solana + Rails
+gem "solrengine"
 
 gem "dotenv-rails", "~> 3.2", groups: [:development, :test]
 
@@ -48,7 +45,7 @@ gem "kamal", require: false
 gem "thruster", require: false
 
 # Use Active Storage variants [https://guides.rubyonrails.org/active_storage_overview.html#transforming-images]
-gem "image_processing", "~> 1.2"
+# gem "image_processing", "~> 1.2"
 
 group :development, :test do
   # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem

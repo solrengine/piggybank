@@ -2,6 +2,8 @@ import { Controller } from "@hotwired/stimulus"
 
 // Live countdown timer for lock cards.
 // Shows remaining time and progress bar, auto-transitions to "Ready" state on expiry.
+// Persists initial remaining time in sessionStorage so the progress bar survives
+// auto-refresh morphs and page reloads.
 export default class extends Controller {
   static targets = ["timer", "progress", "badge"]
   static values = {
@@ -11,7 +13,8 @@ export default class extends Controller {
 
   connect() {
     if (this.expiredValue) return
-    this.createdAt = null
+    this.storageKey = `countdown:${this.expiresAtValue}`
+    this.totalDuration = this.loadTotalDuration()
     this.tick()
     this.interval = setInterval(() => this.tick(), 1000)
   }
@@ -20,12 +23,27 @@ export default class extends Controller {
     if (this.interval) clearInterval(this.interval)
   }
 
+  // Load or initialize the total duration for this lock.
+  // On first connect, we store the remaining time as the baseline.
+  // On subsequent connects (morph/reload), we reuse the stored value.
+  loadTotalDuration() {
+    const stored = sessionStorage.getItem(this.storageKey)
+    if (stored) return parseInt(stored, 10)
+
+    const remaining = this.expiresAtValue - Math.floor(Date.now() / 1000)
+    if (remaining > 0) {
+      sessionStorage.setItem(this.storageKey, remaining)
+    }
+    return remaining
+  }
+
   tick() {
     const now = Math.floor(Date.now() / 1000)
     const remaining = this.expiresAtValue - now
 
     if (remaining <= 0) {
       clearInterval(this.interval)
+      sessionStorage.removeItem(this.storageKey)
       this.markExpired()
       return
     }
@@ -41,22 +59,18 @@ export default class extends Controller {
       }
     }
 
-    // Update progress bar — estimate total duration from remaining time
-    // We don't know original duration, so we estimate progress based on how close to expiry
-    if (this.hasProgressTarget) {
-      // On first tick, record the starting remaining time to calculate progress
-      if (!this.createdAt) {
-        this.createdAt = remaining
-      }
-      const elapsed = this.createdAt - remaining
-      const progress = Math.min((elapsed / this.createdAt) * 100, 100)
+    // Update progress bar using stored total duration
+    if (this.hasProgressTarget && this.totalDuration > 0) {
+      const elapsed = this.totalDuration - remaining
+      const progress = Math.min((elapsed / this.totalDuration) * 100, 100)
       this.progressTarget.style.width = `${progress}%`
     }
   }
 
   markExpired() {
     if (this.hasTimerTarget) {
-      this.timerTarget.innerHTML = `<span class="text-green-400">Ready to unlock</span>`
+      this.timerTarget.textContent = "Ready to unlock"
+      this.timerTarget.className = "text-green-400"
     }
 
     if (this.hasProgressTarget) {
@@ -69,7 +83,13 @@ export default class extends Controller {
       this.badgeTarget.className = "px-2 py-0.5 rounded-full text-xs font-medium bg-green-900/50 text-green-400 border border-green-800"
     }
 
-    // Refresh to show unlock button after a short delay
-    setTimeout(() => window.location.reload(), 2000)
+    // Refresh via Turbo to show unlock button
+    setTimeout(() => {
+      import("@hotwired/turbo").then(({ visit }) => {
+        visit(window.location.href, { action: "replace" })
+      }).catch(() => {
+        window.location.href = window.location.href
+      })
+    }, 2000)
   }
 }

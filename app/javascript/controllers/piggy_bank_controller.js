@@ -20,7 +20,8 @@ export default class extends Controller {
     buildLockUrl: String,
     buildUnlockUrl: String,
     walletAddress: String,
-    chain: { type: String, default: "solana:devnet" }
+    chain: { type: String, default: "solana:devnet" },
+    dashboardUrl: { type: String, default: "/dashboard" }
   }
 
   connect() {
@@ -40,7 +41,6 @@ export default class extends Controller {
     for (const wallet of wallets) {
       if (!wallet.features[SolanaSignAndSendTransaction]) continue
 
-      // Check if this wallet already has our account visible
       const account = wallet.accounts.find(a =>
         a.address === this.walletAddressValue
       )
@@ -52,7 +52,6 @@ export default class extends Controller {
     }
 
     // No wallet had the account visible — try connecting each one
-    // that supports signAndSendTransaction
     for (const wallet of wallets) {
       if (!wallet.features[SolanaSignAndSendTransaction]) continue
       if (!wallet.features["standard:connect"]) continue
@@ -128,10 +127,7 @@ export default class extends Controller {
 
       const { instruction_data, program_id, blockhash, last_valid_block_height } = await response.json()
 
-      // 3. Get wallet account
-      if (!this.walletAccount) throw new Error("No wallet account found for " + this.walletAddressValue)
-
-      // 4. Build instruction with correct accounts
+      // 3. Build instruction with correct accounts
       const instructionBytes = Uint8Array.from(atob(instruction_data), c => c.charCodeAt(0))
 
       // Account order from IDL: payer, dst, lock, system_program
@@ -147,7 +143,7 @@ export default class extends Controller {
         data: instructionBytes
       }
 
-      // 5. Build transaction message
+      // 4. Build transaction message
       const txMessage = pipe(
         createTransactionMessage({ version: "legacy" }),
         m => setTransactionMessageFeePayer(address(this.walletAccount.address), m),
@@ -158,7 +154,7 @@ export default class extends Controller {
         m => appendTransactionMessageInstruction(instruction, m)
       )
 
-      // 6. Compile, sign with lock keypair, merge signature
+      // 5. Compile, sign with lock keypair, merge signature
       const compiled = compileTransaction(txMessage)
       const [lockSig] = await lockSigner.signTransactions([compiled])
       const withLockSig = {
@@ -166,7 +162,7 @@ export default class extends Controller {
         signatures: { ...compiled.signatures, ...lockSig }
       }
 
-      // 7. Convert to bytes and send to wallet
+      // 6. Convert to bytes and send to wallet
       const base64Wire = getBase64EncodedWireTransaction(withLockSig)
       const txBytes = Uint8Array.from(atob(base64Wire), c => c.charCodeAt(0))
 
@@ -180,13 +176,12 @@ export default class extends Controller {
       })
 
       const sigStr = typeof sigBytes === "string" ? sigBytes : new TextDecoder().decode(sigBytes)
+      const cluster = this.clusterFromChain()
 
-      this.showStatus(
-        `Locked! <a href="https://explorer.solana.com/tx/${sigStr}?cluster=devnet" target="_blank" class="underline">View on Explorer</a>`,
-        "success"
-      )
+      this.showStatus(`Locked! `, "success")
+      this.appendExplorerLink(sigStr, cluster)
 
-      setTimeout(() => window.location.reload(), 3000)
+      setTimeout(() => { window.location.href = this.dashboardUrlValue }, 3000)
 
     } catch (error) {
       this.showStatus(error.message, "error")
@@ -226,8 +221,6 @@ export default class extends Controller {
 
       const { instruction_data, accounts, program_id, blockhash, last_valid_block_height } = await response.json()
 
-      if (!this.walletAccount) throw new Error("No wallet account found for " + this.walletAddressValue)
-
       const instructionBytes = Uint8Array.from(atob(instruction_data), c => c.charCodeAt(0))
 
       const instruction = {
@@ -263,13 +256,12 @@ export default class extends Controller {
       })
 
       const sigStr = typeof sigBytes === "string" ? sigBytes : new TextDecoder().decode(sigBytes)
+      const cluster = this.clusterFromChain()
 
-      this.showStatus(
-        `Unlocked! <a href="https://explorer.solana.com/tx/${sigStr}?cluster=devnet" target="_blank" class="underline">View on Explorer</a>`,
-        "success"
-      )
+      this.showStatus(`Unlocked! `, "success")
+      this.appendExplorerLink(sigStr, cluster)
 
-      setTimeout(() => window.location.reload(), 3000)
+      setTimeout(() => { window.location.href = this.dashboardUrlValue }, 3000)
 
     } catch (error) {
       this.showStatus(error.message, "error")
@@ -285,6 +277,23 @@ export default class extends Controller {
     return AccountRole.READONLY
   }
 
+  clusterFromChain() {
+    if (this.chainValue.includes("devnet")) return "devnet"
+    if (this.chainValue.includes("testnet")) return "testnet"
+    return "mainnet"
+  }
+
+  // Safely append an explorer link to the status element (no innerHTML with user data)
+  appendExplorerLink(signature, cluster) {
+    if (!this.hasStatusTarget) return
+    const link = document.createElement("a")
+    link.href = `https://explorer.solana.com/tx/${encodeURIComponent(signature)}?cluster=${cluster}`
+    link.target = "_blank"
+    link.className = "underline"
+    link.textContent = "View on Explorer"
+    this.statusTarget.appendChild(link)
+  }
+
   showStatus(message, type) {
     if (!this.hasStatusTarget) return
     const colors = {
@@ -293,6 +302,6 @@ export default class extends Controller {
       pending: "bg-purple-900/50 border border-purple-800 text-purple-400"
     }
     this.statusTarget.className = `mt-4 p-3 rounded-lg text-sm text-center ${colors[type] || ""}`
-    this.statusTarget.innerHTML = message
+    this.statusTarget.textContent = message
   }
 }
