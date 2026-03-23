@@ -33,7 +33,7 @@ gem "solid_cable"
 # SolRengine — Ruby gems for Solana + Rails
 gem "solrengine"
 
-gem "dotenv-rails", "~> 3.2", groups: [:development, :test]
+gem "dotenv-rails", "~> 3.2", groups: [ :development, :test ]
 
 # Reduces boot times through caching; required in config/boot.rb
 gem "bootsnap", require: false
