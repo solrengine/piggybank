@@ -763,9 +763,10 @@
     "@wallet-standard/base" "^1.1.0"
     "@wallet-standard/features" "^1.1.0"
 
-"@solrengine/wallet-utils@https://github.com/solrengine/wallet-utils.git":
+"@solrengine/wallet-utils@^0.2.0":
   version "0.2.0"
-  resolved "https://github.com/solrengine/wallet-utils.git#039c9dc818450b107312a57e36d334eb95bd3138"
+  resolved "https://registry.yarnpkg.com/@solrengine/wallet-utils/-/wallet-utils-0.2.0.tgz#974c92279c0414e86ed5da452f2d5c7255cf6d27"
+  integrity sha512-NbO7uQe5z/mZb7K4VWBJxj8geYjeLjlndCzlrHcaw/dvQZ3cJ01bFkV9yDHtHxv/OAywiiNkdQFcmgKiGXOLWg==
 
 "@tailwindcss/cli@^4.2.2":
   version "4.2.2"
