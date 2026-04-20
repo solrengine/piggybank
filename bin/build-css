@@ -1,0 +1,23 @@
+#!/usr/bin/env ruby
+# Resolve gem paths via Bundler and invoke the Tailwind CLI.
+# Any extra CLI arguments (e.g. --watch) are forwarded to Tailwind.
+
+require "bundler/setup"
+require "fileutils"
+
+GEMS_WITH_TAILWIND_SOURCES = %w[solrengine-auth]
+
+ROOT = File.expand_path("..", __dir__)
+INPUT = File.join(ROOT, "app/assets/stylesheets/application.tailwind.css")
+OUTPUT = File.join(ROOT, "app/assets/builds/application.css")
+TMP_INPUT = File.join(ROOT, "tmp/application.tailwind.css")
+
+gem_sources = GEMS_WITH_TAILWIND_SOURCES.flat_map do |name|
+  spec = Gem.loaded_specs[name] or next []
+  %w[erb rb].map { |ext| %(@source "#{spec.gem_dir}/app/**/*.#{ext}";) }
+end.compact
+
+FileUtils.mkdir_p(File.dirname(TMP_INPUT))
+File.write(TMP_INPUT, File.read(INPUT) + "\n" + gem_sources.join("\n") + "\n")
+
+exec("npx", "@tailwindcss/cli", "-i", TMP_INPUT, "-o", OUTPUT, *ARGV)
