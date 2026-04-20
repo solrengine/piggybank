@@ -16,6 +16,10 @@ class ApplicationController < ActionController::Base
   end
 
   def authenticate!
-    redirect_to login_path unless logged_in?
+    return if logged_in?
+    respond_to do |format|
+      format.html { redirect_to solrengine_auth.login_path }
+      format.json { render json: { error: "Not authenticated", code: "unauthenticated" }, status: :unauthorized }
+    end
   end
 end
